@@ -59,6 +59,21 @@ class TestExcelExport(unittest.TestCase):
         self.assertIn("企业价值（元）", labels)
         workbook.close()
 
+    def test_number_formats_applied(self):
+        workbook = load_workbook(BytesIO(self.payload))
+        self.assertEqual(workbook["估值结果"].cell(row=4, column=2).number_format, "0.0000")
+        self.assertEqual(workbook["预测明细"].cell(row=2, column=3).number_format, "0.0%")
+        self.assertEqual(workbook["关键假设"].cell(row=5, column=2).number_format, "0%")
+        self.assertEqual(workbook["情景分析"].cell(row=2, column=7).number_format, "0.0%")
+        workbook.close()
+
+    def test_freeze_panes_and_column_width(self):
+        workbook = load_workbook(BytesIO(self.payload))
+        sheet = workbook["预测明细"]
+        self.assertEqual(sheet.freeze_panes, "A2")
+        self.assertGreater(sheet.column_dimensions["B"].width, 10)
+        workbook.close()
+
 
 if __name__ == "__main__":
     unittest.main()

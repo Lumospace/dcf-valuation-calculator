@@ -129,5 +129,23 @@ class TestFadeSchedule(unittest.TestCase):
         self.assertEqual(len(fade_schedule(0.1, 0.05, 1)), 1)
 
 
+class TestExitMultiple(unittest.TestCase):
+    def test_terminal_value_uses_last_year_ebitda(self):
+        inputs = base_inputs(terminal_method="exit_multiple", exit_multiple=8.0)
+        result = run_dcf(inputs)
+        last = result.projection.iloc[-1]
+        ebitda = last["ebit"] + last["da"]
+        self.assertAlmostEqual(result.terminal_value, ebitda * 8.0, places=6)
+        self.assertAlmostEqual(result.pv_terminal, ebitda * 8.0 * last["discount_factor"], places=6)
+
+    def test_allows_growth_above_wacc(self):
+        inputs = base_inputs(terminal_method="exit_multiple", exit_multiple=8.0, terminal_growth=0.12)
+        run_dcf(inputs)
+
+    def test_gordon_still_rejects_growth_above_wacc(self):
+        with self.assertRaises(ValueError):
+            run_dcf(base_inputs(terminal_growth=0.12))
+
+
 if __name__ == "__main__":
     unittest.main()

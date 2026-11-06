@@ -117,7 +117,7 @@ def _validate(inputs: DCFInputs) -> None:
         raise ValueError("WACC 必须大于 0")
     if inputs.terminal_growth <= -1:
         raise ValueError("永续增长率不得低于 -100%")
-    if inputs.terminal_growth >= inputs.wacc:
+    if inputs.terminal_method == "gordon" and inputs.terminal_growth >= inputs.wacc:
         raise ValueError("永续增长率必须小于 WACC，否则终值公式不成立")
     if inputs.shares_outstanding <= 0:
         raise ValueError("股本必须大于 0")

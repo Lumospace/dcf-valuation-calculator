@@ -21,22 +21,33 @@ def build_sensitivity(
     wacc_deltas: tuple[float, ...] = (-0.02, -0.01, 0.0, 0.01, 0.02),
     g_deltas: tuple[float, ...] = (-0.01, -0.005, 0.0, 0.005, 0.01),
     metric: str = "per_share",
+    multiple_deltas: tuple[float, ...] = (-2.0, -1.0, 0.0, 1.0, 2.0),
 ) -> pd.DataFrame:
-    """构建 WACC × 永续增长率 的双变量敏感性表。
+    """构建 WACC × 第二变量的双变量敏感性表。
 
+    Gordon 模式下第二变量为永续增长率，退出倍数模式下为退出倍数。
     参数组合不满足模型约束（如 WACC ≤ g）时该格记为 NaN，不中断整表计算。
     """
     if metric not in _METRIC_FIELDS:
         raise ValueError(f"metric 仅支持 {sorted(_METRIC_FIELDS)}")
 
     wacc_values = [round(inputs.wacc + d, 6) for d in wacc_deltas]
-    g_values = [round(inputs.terminal_growth + d, 6) for d in g_deltas]
 
-    data = np.full((len(wacc_values), len(g_values)), np.nan)
+    if inputs.terminal_method == "exit_multiple":
+        base = float(inputs.exit_multiple or 0.0)
+        axis_values = sorted({max(1.0, round(base + d, 2)) for d in multiple_deltas})
+        columns = [f"{value:.1f}x" for value in axis_values]
+        overrides = [{"exit_multiple": value} for value in axis_values]
+    else:
+        axis_values = [round(inputs.terminal_growth + d, 6) for d in g_deltas]
+        columns = [f"g={value:.2%}" for value in axis_values]
+        overrides = [{"terminal_growth": value} for value in axis_values]
+
+    data = np.full((len(wacc_values), len(axis_values)), np.nan)
     for i, wacc in enumerate(wacc_values):
-        for j, g in enumerate(g_values):
+        for j, override in enumerate(overrides):
             try:
-                result = run_dcf(replace(inputs, wacc=wacc, terminal_growth=g))
+                result = run_dcf(replace(inputs, wacc=wacc, **override))
             except ValueError:
                 continue
             data[i, j] = getattr(result, _METRIC_FIELDS[metric])
@@ -44,7 +55,7 @@ def build_sensitivity(
     frame = pd.DataFrame(
         data,
         index=pd.Index(wacc_values, name="WACC"),
-        columns=[f"g={g:.2%}" for g in g_values],
+        columns=columns,
     )
     return frame.round(2)
 

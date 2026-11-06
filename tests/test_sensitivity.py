@@ -90,5 +90,24 @@ class TestScenarios(unittest.TestCase):
         self.assertAlmostEqual(base_relative, 0.0, places=9)
 
 
+class TestExitMultipleSensitivity(unittest.TestCase):
+    def test_columns_are_multiples(self):
+        inputs = sample_inputs(terminal_method="exit_multiple", exit_multiple=8.0)
+        frame = build_sensitivity(inputs)
+        self.assertEqual(frame.columns.tolist(), ["6.0x", "7.0x", "8.0x", "9.0x", "10.0x"])
+
+    def test_center_cell_matches_base_case(self):
+        inputs = sample_inputs(terminal_method="exit_multiple", exit_multiple=8.0)
+        frame = build_sensitivity(inputs)
+        expected = run_dcf(inputs).value_per_share
+        self.assertAlmostEqual(frame.iloc[2, 2], round(expected, 2), places=2)
+
+    def test_multiples_never_below_one(self):
+        inputs = sample_inputs(terminal_method="exit_multiple", exit_multiple=2.0)
+        frame = build_sensitivity(inputs)
+        self.assertTrue(all(column.endswith("x") for column in frame.columns))
+        self.assertIn("1.0x", frame.columns)
+
+
 if __name__ == "__main__":
     unittest.main()

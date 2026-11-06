@@ -5,6 +5,7 @@ from __future__ import annotations
 from io import BytesIO
 
 import pandas as pd
+from openpyxl.utils import get_column_letter
 
 from .model import DCFResult
 
@@ -25,6 +26,67 @@ PROJECTION_LABELS = {
     "pv_fcff": "现金流现值",
 }
 
+SUMMARY_FORMATS = {2: "#,##0.00", 3: "#,##0.00", 4: "0.0000", 5: "0.0%", 6: '0.00"x"'}
+
+ASSUMPTION_FORMATS = {
+    2: "#,##0",
+    3: "0",
+    5: "0%",
+    6: "0.0%",
+    7: "0.0%",
+    8: "0.0%",
+    9: "0.0%",
+    10: "0.0%",
+    12: '0.00"x"',
+    13: "#,##0",
+    14: "#,##0",
+}
+
+PROJECTION_FORMATS = {
+    1: "0",
+    2: "#,##0",
+    3: "0.0%",
+    4: "0.0%",
+    5: "#,##0",
+    6: "#,##0",
+    7: "#,##0",
+    8: "#,##0",
+    9: "#,##0",
+    10: "#,##0",
+    11: "0.0000",
+    12: "#,##0",
+}
+
+SCENARIO_FORMATS = {2: "0.00", 3: "0.00", 4: "#,##0", 5: "#,##0", 6: "0.00", 7: "0.0%"}
+
+
+def _format_column(worksheet, column: int, number_format: str, first_row: int, last_row: int) -> None:
+    for row in range(first_row, last_row + 1):
+        cell = worksheet.cell(row=row, column=column)
+        if isinstance(cell.value, (int, float)):
+            cell.number_format = number_format
+
+
+def _format_columns(worksheet, column_formats: dict[int, str], first_row: int, last_row: int) -> None:
+    for column, number_format in column_formats.items():
+        _format_column(worksheet, column, number_format, first_row, last_row)
+
+
+def _format_rows(worksheet, column: int, row_formats: dict[int, str], first_row: int, last_row: int) -> None:
+    for row in range(first_row, last_row + 1):
+        number_format = row_formats.get(row)
+        if number_format is None:
+            continue
+        _format_column(worksheet, column, number_format, row, row)
+
+
+def _autofit(worksheet, min_width: int = 10, max_width: int = 30) -> None:
+    for cells in worksheet.columns:
+        width = max(len(str(cell.value)) if cell.value is not None else 0 for cell in cells)
+        letter = get_column_letter(cells[0].column)
+        worksheet.column_dimensions[letter].width = min(max(min_width, width * 1.6), max_width)
+    worksheet.freeze_panes = "A2"
+
 
 def _assumption_frame(result: DCFResult) -> tuple[pd.DataFrame, pd.DataFrame]:
     inputs = result.inputs
@@ -37,8 +99,9 @@ def _assumption_frame(result: DCFResult) -> tuple[pd.DataFrame, pd.DataFrame]:
         ("资本开支 / 收入", inputs.capex_pct_revenue),
         ("营运资本 / 收入", inputs.nwc_pct_revenue),
         ("WACC", inputs.wacc),
-        ("永续增长率", inputs.terminal_growth),
-        ("终值方法", inputs.terminal_method),
+        ("永续增长率", inputs.terminal_growth if inputs.terminal_method == "gordon" else None),
+        ("终值方法", "Gordon 永续增长" if inputs.terminal_method == "gordon" else "退出倍数法"),
+        ("退出倍数（EV/EBITDA）", inputs.exit_multiple),
         ("净负债（元）", round(inputs.net_debt, 2)),
         ("股本（股）", round(inputs.shares_outstanding, 2)),
     ]
@@ -87,5 +150,30 @@ def build_excel(
 
         sensitivity.to_excel(writer, sheet_name="敏感性分析")
         scenarios.to_excel(writer, sheet_name="情景分析", index=False)
+
+        book = writer.book
+        summary_sheet = book["估值结果"]
+        _format_rows(summary_sheet, 2, SUMMARY_FORMATS, 2, 1 + len(summary))
+        _autofit(summary_sheet)
+
+        assumption_sheet = book["关键假设"]
+        _format_rows(assumption_sheet, 2, ASSUMPTION_FORMATS, 2, 1 + len(assumptions))
+        schedule_start = len(assumptions) + 4
+        _format_columns(assumption_sheet, {1: "0", 2: "0.0%", 3: "0.0%"}, schedule_start, assumption_sheet.max_row)
+        _autofit(assumption_sheet)
+
+        projection_sheet = book["预测明细"]
+        _format_columns(projection_sheet, PROJECTION_FORMATS, 2, projection_sheet.max_row)
+        _autofit(projection_sheet)
+
+        sensitivity_sheet = book["敏感性分析"]
+        sensitivity_formats = {1: "0.0%"}
+        sensitivity_formats.update({column: "#,##0.00" for column in range(2, len(sensitivity.columns) + 2)})
+        _format_columns(sensitivity_sheet, sensitivity_formats, 2, sensitivity_sheet.max_row)
+        _autofit(sensitivity_sheet)
+
+        scenario_sheet = book["情景分析"]
+        _format_columns(scenario_sheet, SCENARIO_FORMATS, 2, scenario_sheet.max_row)
+        _autofit(scenario_sheet)
 
     return buffer.getvalue()

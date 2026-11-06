@@ -141,10 +141,14 @@ def derive_assumptions(df: pd.DataFrame, lookback: int = 3) -> dict:
     avg_growth = float(growth_hist.mean()) if len(growth_hist) else 0.0
     avg_growth = float(np.clip(avg_growth, -0.2, 0.5))
 
+    margin = float(recent["ebit_margin"].mean())
+    if not np.isfinite(margin):
+        raise ValueError("缺少 EBIT 数据，无法反推利润率假设")
+
     return {
         "base_revenue": float(df["revenue"].iloc[-1]),
         "revenue_growth": avg_growth,
-        "ebit_margin": float(recent["ebit_margin"].mean()),
+        "ebit_margin": margin,
         "da_pct_revenue": float((recent["da"] / recent["revenue"]).mean()),
         "capex_pct_revenue": float((recent["capex"] / recent["revenue"]).mean()),
         "nwc_pct_revenue": float((recent["nwc"] / recent["revenue"]).mean()),
