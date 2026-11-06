@@ -114,6 +114,15 @@ git switch main
 git merge feature/exit-multiple
 ```
 
+## 部署到 Streamlit Community Cloud
+
+1. 把仓库推送到 GitHub（免费额度要求仓库为 public）
+2. 打开 <https://share.streamlit.io>，用 GitHub 账号登录
+3. New app → 选择仓库与分支 `main` → 主文件填 `app.py` → Deploy
+4. 首次启动会自动生成 `data/sample_financials.db`，无需额外配置
+
+部署完成后，把应用链接填回简历中的“在线 Demo”一栏。
+
 ## 已知局限
 
 - 单公司、单币种，未处理期权、或有对价、少数股东权益等复杂科目
