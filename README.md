@@ -2,7 +2,19 @@
 
 把估值工作中在 Excel 里手工搭建的 DCF 模型参数化：输入假设即可得到企业价值、股权价值与每股价值区间，并导出可直接复核的 Excel 测算表。
 
-适用于估值、投行、PE/VC 场景中的快速测算与敏感性分析，也用于演示"业务手工流程 → 工具化"的改造路径。
+适用于估值、投行、PE/VC 场景中的快速测算与敏感性分析，也用于演示「业务手工流程 → 工具化」的改造路径。
+
+**在线体验**：<https://dcf-valuation-calculator.streamlit.app/>（首次访问可能需要几秒唤醒）
+
+> 仓库内的样本公司均为虚构数据，仅用于演示方法，不构成投资建议。
+
+## 解决什么问题
+
+- 手工搭表重复且耗时，同一套口径每次都要重搭一遍
+- 不同人的假设口径不统一，结果难以横向比较
+- 敏感性分析和情景分析靠手工复制，容易出错
+
+工具把这三件事标准化：假设集中输入、结果自动重算、测算过程可导出复核。
 
 ## 功能
 
@@ -12,9 +24,15 @@
 - 悲观 / 基准 / 乐观三档情景分析
 - 从 SQLite 读取历史财务数据，自动清洗并反推估值假设
 - 一键导出 Excel（估值结果、关键假设、预测明细、敏感性分析、情景分析 5 张表，含数字格式与冻结窗格）
-- 56 个单元测试覆盖公式、边界条件、数据清洗、界面冒烟与导出格式
+- 56 个自动化测试覆盖公式、边界条件、数据清洗、界面冒烟与导出格式
+
+## 界面
+
+侧栏调整假设，主区顶部显示企业价值、股权价值、每股价值与终值占比，下方四个标签页分别是预测明细、敏感性分析、情景分析和基础数据，右上角可直接下载 Excel。
 
 ## 快速开始
+
+需要 Python 3.10 及以上。
 
 ```bash
 pip install -r requirements.txt
@@ -26,6 +44,10 @@ streamlit run app.py
 ```
 
 浏览器打开 `http://localhost:8501`。
+
+## 技术栈
+
+Python 3.10+、Streamlit、pandas、NumPy、SQLite、openpyxl、pytest、Git。
 
 ## 目录结构
 
@@ -41,7 +63,7 @@ dcf-valuation-calculator/
 │   └── sample_data.py      # 演示数据生成（虚构公司）
 ├── scripts/
 │   └── build_sample_db.py  # 生成样本数据库的 CLI
-├── tests/                  # 单元测试
+├── tests/                  # 自动化测试
 ├── data/                   # 运行时生成的数据库（已 gitignore）
 └── requirements.txt
 ```
@@ -64,19 +86,20 @@ EV       = Σ PV(FCFF_t) + PV(TV)
 - 退出倍数法：`TV = 末年 EBITDA × 退出倍数`
 - 收入增速在预测期内由首年水平线性收敛至末年水平（`fade_schedule`）
 
-模型内置以下校验与提示，避免出现"看起来合理但假设不成立"的结果：
+模型内置以下校验与提示，避免出现「看起来合理但假设不成立」的结果：
 
 | 情形 | 处理 |
 | --- | --- |
-| WACC ≤ 永续增长率 | 直接报错，终值公式不成立 |
+| WACC ≤ 永续增长率（Gordon 模式） | 模型层拒绝该组合；界面会自动下调 g 并提示 |
 | 终值占 EV 超过 85% | 提示估值高度依赖永续假设 |
 | WACC 与 g 差距不足 2 个百分点 | 提示终值不稳定 |
+| 永续增长率高于 5% | 提示超出常见合理区间 |
 | 预测期自由现金流为负 | 提示需复核营运资本与资本开支 |
 | 股权价值为负 | 提示净负债已超过企业价值 |
 
 ## 数据说明
 
-`data/sample_financials.db` 中的 5 家公司（恒瑞智造、云启科技、华辰医药、明远消费、中港物流）均为**虚构样本**，仅用于演示，不代表任何真实企业。
+`data/sample_financials.db` 中的 5 家公司（恒瑞智造、云启科技、华辰医药、明远消费、中港物流）均为**虚构样本**，仅用于演示，不代表任何真实企业。样本中故意保留了 2 条缺失值（华辰医药 2022 年资本开支、中港物流 2021 年折旧摊销），用于验证清洗规则。
 
 数据清洗流程（`dcf/data.py::clean_financials`）：
 
@@ -105,35 +128,22 @@ pytest tests -v
 - 图表数据无 NaN（防止索引对齐导致空图）
 - 界面冒烟：样本 / 手动 / 退出倍数三种模式与非法参数下页面不崩溃
 
-## Git 工作流
+## 开发过程
 
-```bash
-git init
-git add .
-git commit -m "feat: DCF 估值引擎与 Streamlit 界面"
+主线按「初始化 → 核心估值引擎 → 合并功能分支 → 文档 → 修复」推进；敏感性与 Excel 导出在 `feature/sensitivity-and-export` 分支开发后合并回 `main`。具体提交记录可在仓库的 Commits 页面查看。
 
-git switch -c feature/exit-multiple
-# ... 开发 ...
-git switch main
-git merge feature/exit-multiple
-```
+## 自己部署（可选）
 
-## 在线 Demo
+如果想在自己的账号下运行一份：
 
-<https://dcf-valuation-calculator.streamlit.app/>
-
-公开仓库：<https://github.com/Lumospace/dcf-valuation-calculator>
-
-## 部署到 Streamlit Community Cloud
-
-1. 把仓库推送到 GitHub（免费额度要求仓库为 public）
-2. 打开 <https://share.streamlit.io>，用 GitHub 账号登录
-3. New app → 选择仓库与分支 `main` → 主文件填 `app.py` → Deploy
-4. 首次启动会自动生成 `data/sample_financials.db`，无需额外配置
+1. Fork 本仓库（Streamlit Community Cloud 要求仓库为公开仓库）
+2. 在 <https://share.streamlit.io> 新建应用，选择你的 fork、分支 `main`、入口文件 `app.py`
+3. 首次启动会自动生成 `data/sample_financials.db`，无需额外配置
 
 ## 已知局限
 
 - 单公司、单币种，未处理期权、或有对价、少数股东权益等复杂科目
+- WACC 由使用者输入，未接入 CAPM 或可比公司数据
 - 永续增长法对 `WACC - g` 高度敏感，差距过小时结果不稳定
 - 假设反推仅使用最近 3 年平均，未做行业对标与可比公司调整
 - 演示数据为虚构，不可用于真实估值结论
