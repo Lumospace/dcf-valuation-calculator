@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.env
+
+# 运行时生成的数据库与导出文件
+data/*.db
+*.xlsx
+
+.streamlit/secrets.toml
+.DS_Store
+Thumbs.db

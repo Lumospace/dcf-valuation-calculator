@@ -1,0 +1,7 @@
+streamlit>=1.30
+pandas>=2.0
+numpy>=1.24
+openpyxl>=3.1
+
+# 可选：单元测试也可直接用 python -m unittest 运行
+pytest>=8.0
